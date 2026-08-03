@@ -1,0 +1,38 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          cli: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install -g nbb
+      - run: clojure -M:test
+      - run: clojure -M:lint
+      - name: Compile the bounded profile for Web and Wasm
+        run: |
+          mkdir -p target/kotoba
+          clojure -M:kotoba compile test/app_files/bounded_conformance.kotoba --source-path src \
+            --target js-browser --output target/kotoba/app-files.mjs
+          clojure -M:kotoba compile test/app_files/bounded_conformance.kotoba --source-path src \
+            --target wasm32-browser --output target/kotoba/app-files.wasm
+      - name: Execute the bounded conformance on both runtimes
+        # Compiling only proves the source is in the subset. This runs `main`
+        # and demands 42, so a confinement check that stopped rejecting rows
+        # parented outside the granted directory would fail here rather than
+        # pass as a clean compile.
+        run: |
+          compiler_src="$(clojure -Spath -M:kotoba | tr ':' '\n' | grep '/compiler/' | head -1)"
+          test -n "$compiler_src"
+          nbb scripts/verify-kotoba.cljs target/kotoba/app-files.mjs \
+            target/kotoba/app-files.wasm "$(dirname "$compiler_src")/runtime/browser-host.mjs"
+

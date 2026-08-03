@@ -1,0 +1,43 @@
+(ns app-files.bounded
+  (:export [new-entry new-listing put-entry entry-count listing-dir]))
+
+;; The capability-free Kotoba profile of a directory listing.
+;;
+;; What is proved here is not the tree -- `kotoba-lang/drive` already models a
+;; folder tree in this profile, and duplicating it would be a second source of
+;; truth for the same thing. What is proved here is the property specific to
+;; browsing: a listing produced under a grant for one directory contains only
+;; entries whose parent is that directory.
+;;
+;; That is the security-relevant claim. `fs/browse` is granted per directory,
+;; so a provider that returned an entry parented elsewhere would be handing the
+;; app rows it was never authorised to see -- and the app would render them
+;; indistinguishably from legitimate ones.
+
+(def entry-type
+  [:record :app-files/entry
+   [[:id :keyword] [:parent :keyword] [:kind :keyword]]])
+(def entries-type [:map :keyword [:alias entry-type]])
+(def listing-type
+  [:record :app-files/listing
+   [[:dir :keyword] [:entries [:alias entries-type]]]])
+
+(defn new-entry [id :keyword parent :keyword kind :keyword] [:alias entry-type]
+  (record entry-type id parent kind))
+
+(defn new-listing [dir :keyword] [:alias listing-type]
+  (record listing-type dir (typed-map-new entries-type)))
+
+(defn put-entry
+  [listing [:alias listing-type] entry [:alias entry-type]] [:alias listing-type]
+  (record-assoc listing-type listing :entries
+    (typed-map-assoc entries-type
+      (record-get listing-type listing :entries)
+      (record-get entry-type entry :id)
+      entry)))
+
+(defn entry-count [listing [:alias listing-type]] :i64
+  (typed-map-count entries-type (record-get listing-type listing :entries)))
+
+(defn listing-dir [listing [:alias listing-type]] :keyword
+  (record-get listing-type listing :dir))

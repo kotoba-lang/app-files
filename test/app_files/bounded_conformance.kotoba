@@ -1,0 +1,47 @@
+(ns app-files.bounded-conformance
+  (:require [app-files.bounded :as listing]
+            [app-files.bounded-validate :as validate])
+  (:export [main]))
+
+;; 42 when every case holds; otherwise the number of the case that failed.
+(defn main [] :i64
+  (let [base (listing/new-listing :w)
+        good (listing/put-entry
+               (listing/put-entry
+                 (listing/put-entry base (listing/new-entry :readme :w :file))
+                 (listing/new-entry :src :w :directory))
+               (listing/new-entry :link :w :symlink))
+
+        ;; A provider that returned a row parented outside the granted
+        ;; directory. This is the case the profile exists to catch: the app
+        ;; would otherwise render it exactly like a legitimate row.
+        escaped (listing/put-entry good (listing/new-entry :secret :etc :file))
+
+        unknown-kind (listing/put-entry base (listing/new-entry :odd :w :socket))
+
+        overflow (listing/put-entry
+                   (listing/put-entry
+                     (listing/put-entry
+                       (listing/put-entry
+                         (listing/put-entry
+                           (listing/put-entry good (listing/new-entry :f4 :w :file))
+                           (listing/new-entry :f5 :w :file))
+                         (listing/new-entry :f6 :w :file))
+                       (listing/new-entry :f7 :w :file))
+                     (listing/new-entry :f8 :w :file))
+                   (listing/new-entry :f9 :w :file))]
+
+    (if (validate/valid? good)
+      (if (= 3 (listing/entry-count good))
+        ;; Both polarities: confinement must fail on the escaped listing and
+        ;; hold on the good one, so a validator that always answered one way
+        ;; could not pass this.
+        (if (validate/confined? escaped) 3
+          (if (validate/valid? escaped) 4
+            (if (validate/known-kinds? unknown-kind) 5
+              (if (validate/bounded? overflow) 6
+                (if (validate/confined? good)
+                  42
+                  7)))))
+        2)
+      1)))

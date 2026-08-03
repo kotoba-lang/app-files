@@ -1,0 +1,72 @@
+(ns app-files.bounded-validate
+  (:export [confined? known-kinds? bounded? valid?]))
+
+(def entry-type
+  [:record :app-files/entry
+   [[:id :keyword] [:parent :keyword] [:kind :keyword]]])
+(def entries-type [:map :keyword [:alias entry-type]])
+(def listing-type
+  [:record :app-files/listing
+   [[:dir :keyword] [:entries [:alias entries-type]]]])
+(def pair-type [:vector [:keyword [:alias entry-type]]])
+(def pair-option-type [:option [:alias pair-type]])
+
+(def max-entries 8)
+
+;; `=` is i64-valued in this subset, not bool, so every comparison is folded
+;; through `if`.
+
+(defn known-kind? [kind :keyword] :bool
+  (if (= kind :file) true
+    (if (= kind :directory) true
+      (if (= kind :symlink) true false))))
+
+(defn confined-loop
+  [entries [:alias entries-type] dir :keyword index :i64 count :i64] :bool
+  (if (= index count) true
+    (match-option (typed-map-entry-at entries-type entries index) pair-option-type
+      (none false)
+      (some pair
+        (let [entry (hetero-vector-at pair-type pair 1)]
+          (if (= (record-get entry-type entry :parent) dir)
+            (confined-loop entries dir (+ index 1) count)
+            false))))))
+
+;; Every entry's parent is the directory the grant was for.
+(defn confined? [listing [:alias listing-type]] :bool
+  (let [entries (record-get listing-type listing :entries)]
+    (confined-loop entries
+      (record-get listing-type listing :dir)
+      0
+      (typed-map-count entries-type entries))))
+
+(defn kinds-loop
+  [entries [:alias entries-type] index :i64 count :i64] :bool
+  (if (= index count) true
+    (match-option (typed-map-entry-at entries-type entries index) pair-option-type
+      (none false)
+      (some pair
+        (let [key (hetero-vector-at pair-type pair 0)
+              entry (hetero-vector-at pair-type pair 1)]
+          (if (= key (record-get entry-type entry :id))
+            (if (known-kind? (record-get entry-type entry :kind))
+              (kinds-loop entries (+ index 1) count)
+              false)
+            false))))))
+
+(defn known-kinds? [listing [:alias listing-type]] :bool
+  (let [entries (record-get listing-type listing :entries)]
+    (kinds-loop entries 0 (typed-map-count entries-type entries))))
+
+(defn bounded? [listing [:alias listing-type]] :bool
+  (if (< max-entries
+         (typed-map-count entries-type (record-get listing-type listing :entries)))
+    false
+    true))
+
+(defn valid? [listing [:alias listing-type]] :bool
+  (if (bounded? listing)
+    (if (known-kinds? listing)
+      (confined? listing)
+      false)
+    false))
