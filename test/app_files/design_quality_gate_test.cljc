@@ -14,6 +14,7 @@
             [app-files.source :as source]
             [clojure.test :refer [deftest is testing]]
             [design-quality.audit :as dq]
+            [mokuroku-ui.core :as mui]
             [mokuroku.catalog :as catalog]))
 
 (def aggregate-floor
@@ -59,12 +60,20 @@
 
 (deftest the-page-spends-tokens-not-literals
   (let [html (page/render (loaded))]
-    (testing "app CSS contains no raw hex colour"
-      ;; The theme map is the only legitimate place for one (kotoba-ui rule 5),
-      ;; and it is not part of app-css.
-      (is (not (re-find #"#[0-9a-fA-F]{3,8}" page/app-css))))
+    ;; The CSS is mokuroku-ui's now — this repo contributes none. Asserting it
+    ;; here anyway is deliberate: if this app ever adds :extra-css, the check
+    ;; is already in place rather than being remembered later.
+    (testing "the shared CSS contains no raw hex colour"
+      (is (not (re-find #"#[0-9a-fA-F]{3,8}" mui/app-css))))
     (testing "and no px font-size"
-      (is (not (re-find #"font-size\s*:\s*\d+px" page/app-css))))
+      (is (not (re-find #"font-size\s*:\s*\d+px" mui/app-css))))
+    (testing "this app adds no CSS of its own"
+      (is (nil? (:extra-css page/view-opts))))
     (testing "it declares a viewport and an appearance-aware theme"
       (is (re-find #"viewport" html))
       (is (re-find #"theme-color" html)))))
+
+(deftest a-selected-row-is-announced
+  (let [html (page/render-html (catalog/select (loaded) "/w/src"))]
+    (is (re-find #"aria-selected=\"true\"" html))
+    (is (re-find #"aria-selected=\"false\"" html))))

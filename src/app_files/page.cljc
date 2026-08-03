@@ -1,47 +1,42 @@
 (ns app-files.page
-  "SSR entry: a catalog value in, a complete document out.
+  "SSR entry. The window comes from `mokuroku-ui`; this only says what a file
+  row is called and how its values read.
 
-  The theme map is the one place in this repo where a hex colour is
-  legitimate (kotoba-ui rule 5). Everything else — every colour, size, radius
-  and spacing decision on the page — comes from `--hig-*` tokens that the
-  appearance flips automatically, so there is no second dark palette to keep
-  in sync."
-  (:require [app-files.view :as view]
-            [kotoba-ui.core :as ui]
-            [mokuroku.catalog :as catalog]))
+  This repo carried its own copy of the window until `mokuroku-ui` was
+  extracted. Keeping it would have meant nine apps each maintaining their own
+  row grid, inspector and status line — and each fixing the same accessibility
+  gap separately, or not at all."
+  (:require [app-files.model :as model]
+            [clojure.string :as str]
+            [mokuroku.catalog :as catalog]
+            [mokuroku-ui.core :as mui]))
 
-(def theme
-  {:accent "#3E7BFA"
-   :appearance :auto})
+(defn kind-label
+  "What the Kind column says for an extension. Absent means a file with no
+  extension, or a directory — neither of which is an unknown kind."
+  [ext]
+  (if (str/blank? (str ext))
+    "Document"
+    (str (str/upper-case ext) " file")))
 
-(def app-css
-  "Unlayered app CSS, so it wins over the library layers without a single
-  compound selector (kotoba-ui rule 3). Three rules: the row's column
-  template, the inspector's field grid, and the selected-row tint — all
-  spending tokens, never literals."
-  (str
-   ".app-files__row{display:grid;"
-   "grid-template-columns:minmax(0,1fr) 8rem 6rem;"
-   "gap:var(--hig-spacing-3);align-items:baseline;min-width:0}"
-   ".app-files__cell{min-width:0;overflow-wrap:break-word}"
-   ".app-files__cell--size{text-align:right;"
-   "font-variant-numeric:tabular-nums}"
-   ".app-files__row--selected{background:var(--hig-fill-quaternary)}"
-   ".app-files__command--destructive{color:var(--hig-palette-red)}"
-   ".app-files__fields{display:grid;gap:var(--hig-spacing-2)}"
-   ".app-files__field{display:flex;justify-content:space-between;"
-   "gap:var(--hig-spacing-3);min-width:0}"))
+(def view-opts
+  {:columns [:name :size :extension]
+   :formatters {:size mui/human-bytes
+                :extension kind-label}
+   :noun "items"
+   :search-placeholder "Search this folder"
+   :empty-title "Nothing here"
+   :empty-body "This folder has no items that match the current filter."
+   :badge (fn [it] (when (= :directory (:item/kind it)) "Folder"))
+   :description "Browse a directory."})
 
-(defn render
-  "The whole window as an HTML document."
+(defn opts-for
+  "View options for a catalog, titled with the directory being browsed."
   [cat]
-  (ui/->page {:title (str "Files — " (:source/label (:catalog/descriptor cat)))
-              :description "Browse a directory."
-              :theme theme
-              :head [[:style app-css]]}
-             (view/window (catalog/view cat))))
+  (assoc view-opts
+         :title (str "Files — " (:source/label (:catalog/descriptor cat)))))
 
-(defn render-html
-  "Just the window fragment, for mounting into an existing document."
-  [cat]
-  (ui/->html (view/window (catalog/view cat))))
+(defn render [cat] (mui/->page (catalog/view cat) (opts-for cat)))
+(defn render-html [cat] (mui/->html (catalog/view cat) (opts-for cat)))
+
+(def default-query model/default-query)

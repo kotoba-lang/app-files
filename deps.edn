@@ -1,40 +1,29 @@
 {:paths ["src" "resources"]
- ;; Git coordinates, not :local/root — a downstream consumer pulling this repo
- ;; as a git dep cannot resolve a sibling path inside ~/.gitlibs. The :local
- ;; alias below is the sibling-checkout workflow (same contract as byoubu-ui).
  :deps {io.github.kotoba-lang/mokuroku
         {:git/url "https://github.com/kotoba-lang/mokuroku.git"
-         :git/sha "0d7add7635b1a3494b8d4973caa38528e1d3de66"}
-        io.github.kotoba-lang/kotoba-ui
-        {:git/url "https://github.com/kotoba-lang/kotoba-ui.git"
-         :git/sha "77981f26293cc492e0381595b24dba30d592ecc9"}
-        io.github.kotoba-lang/appkit
-        {:git/url "https://github.com/kotoba-lang/appkit.git"
-         :git/sha "03b1c5373817229060f3fac9e41e97775c320997"}}
+         :git/sha "00f0bfcd134879712d4b102e6d1ea4da5e37ad7b"}
+        io.github.kotoba-lang/mokuroku-ui
+        {:git/url "https://github.com/kotoba-lang/mokuroku-ui.git"
+         :git/sha "58f358c392b254c9c733a1ef13c55e9960710c3f"}}
  :aliases
  {:test {:extra-paths ["test"]
          :extra-deps {org.clojure/clojure {:mvn/version "1.11.1"}
                       io.github.cognitect-labs/test-runner
                       {:git/tag "v0.5.1" :git/sha "dfb30dd"}
-                      ;; Scoring the rendered window is part of the test suite,
-                      ;; not a separate ritual someone remembers to run.
                       io.github.kotoba-lang/design-quality
                       {:git/url "https://github.com/kotoba-lang/design-quality.git"
                        :git/sha "fb766e2f79c088de05e289554c9de049e7909bd3"}}
          :main-opts ["-m" "cognitect.test-runner"]
          :exec-fn cognitect.test-runner.api/test}
-
   :local {:override-deps {io.github.kotoba-lang/mokuroku {:local/root "../mokuroku"}
+                          io.github.kotoba-lang/mokuroku-ui {:local/root "../mokuroku-ui"}
                           io.github.kotoba-lang/kotoba-ui {:local/root "../kotoba-ui"}
                           io.github.kotoba-lang/appkit {:local/root "../appkit"}
-                          io.github.kotoba-lang/design-quality
-                          {:local/root "../design-quality"}}}
-
+                          io.github.kotoba-lang/design-quality {:local/root "../design-quality"}}}
   :kotoba {:extra-deps {io.github.kotoba-lang/compiler
                         {:git/url "https://github.com/kotoba-lang/compiler.git"
                          :git/sha "bef32b78852212bc096849d1ff9779c8afae4796"}}
            :main-opts ["-m" "kotoba.compiler.cli"]}
-
   :lint {:replace-deps {clj-kondo/clj-kondo {:mvn/version "2024.11.14"}}
          :main-opts ["-m" "clj-kondo.main" "--lint" "src" "test"
                      "--fail-level" "error"]}}}

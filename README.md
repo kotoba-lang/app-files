@@ -3,18 +3,17 @@
 **Finder, on `mokuroku`.** Browse a directory: sort it, search it, select in
 it, inspect what is selected, and propose what to do with it.
 
-This repo owns three things and nothing else: what a file listing's *columns*
-are, how a `fs/browse` provider's rows become items, and what the window looks
-like. Sorting, filtering, selection and command semantics are
-[`mokuroku`](https://github.com/kotoba-lang/mokuroku)'s; type, colour, spacing
-and layout are [`kotoba-ui`](https://github.com/kotoba-lang/kotoba-ui) +
-[`appkit`](https://github.com/kotoba-lang/appkit)'s.
+This repo owns two things and nothing else: what a file listing's *columns*
+are, and how a `fs/browse` provider's rows become items. Sorting, filtering,
+selection and command semantics are
+[`mokuroku`](https://github.com/kotoba-lang/mokuroku)'s; the window is
+[`mokuroku-ui`](https://github.com/kotoba-lang/mokuroku-ui)'s.
 
 Design: [ADR-2608035000](https://github.com/com-junkawasaki/root/blob/main/90-docs/adr/2608035000-app-standard-application-suite-on-a-shared-catalog-kernel.edn).
 
 ```text
-fs/browse provider  →  app-files.model  →  mokuroku.catalog  →  app-files.view
-  (host, capability)     entries→items       sort/select/…        hiccup
+fs/browse provider  →  app-files.model  →  mokuroku.catalog  →  mokuroku-ui
+  (host, capability)     entries→items       sort/select/…        the window
 ```
 
 ## It reads nothing
@@ -72,23 +71,26 @@ deterministic 12-axis HIG/WCAG rubric. The empty state is included on purpose:
 it is the screen most likely to ship unstyled, because it is the one nobody
 looks at while building.
 
-Measured 2026-08-03 (design-quality `fb766e2`, liquid-glass-ui via kotoba-ui
-`77981f2`): **listing 100.00 / multi-selection 100.00 / awaiting-grant 100.00,
-aggregate 100.00**. Floors are set at 98.0. Raise them when upstream improves;
+Measured 2026-08-04 (design-quality `fb766e2`, mokuroku-ui `58f358c`):
+**listing 100.00 / multi-selection 100.00 / awaiting-grant 100.00, aggregate
+100.00**. Floors are set at 98.0. Raise them when upstream improves;
 never lower them to make a regression pass.
 
-> **Known gap, filed not faked.** Row selection is carried by a CSS class
-> only. `aria-selected` belongs on the `role="listitem"` element, and
-> `liquid-glass/list-row` destructures just `:act`/`:trailing`/`:class` — it
-> has no `:attrs` passthrough, so writing `:attrs {:aria-selected …}` here
-> would be silently dropped while the code read as accessible. Every app in
-> the suite with a selectable list needs it, so the fix belongs upstream in
-> liquid-glass-ui rather than in a fork here.
+Selection is announced with `aria-selected`, not only a colour class — a
+class tells the eye and nothing else. That needed an `:attrs` passthrough on
+`liquid-glass/list-row`, which was added upstream rather than worked around
+here, because every app in the suite with a selectable list needs it.
+
+The window itself comes from
+[`mokuroku-ui`](https://github.com/kotoba-lang/mokuroku-ui). This repo carried
+its own copy until that was extracted; keeping it would have meant nine apps
+each maintaining their own row grid, inspector and status line, and each
+fixing the accessibility gap separately or not at all.
 
 ## Test
 
 ```sh
-clojure -M:local:test    # sibling checkouts (13 tests)
+clojure -M:local:test    # sibling checkouts (12 tests)
 clojure -M:test          # pinned git deps
 clojure -M:lint
 
