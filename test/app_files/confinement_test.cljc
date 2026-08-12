@@ -1,0 +1,81 @@
+(ns app-files.confinement-test
+  "The grant covers one directory, and now something checks that.
+
+  `-fetch` used to hand the provider's rows straight to `listing->items`. A
+  provider that returned `/etc/passwd` while the grant was for `/w` had it
+  rendered as though it were inside `/w` — same row, same columns, same
+  commands offered against it. Nothing in the repository said otherwise.
+
+  `bounded_validate.kotoba` had said otherwise since it was written, as
+  `confined?`, and had never run: it is a bounded profile over an abstract
+  model (entries carry an explicit `:parent`, ids are `:keyword`, a listing
+  caps at eight) and a provider row is none of those things. So the property
+  is now enforced where the real rows are, and the two statements of it are
+  kept honest against each other below rather than left to resemble each
+  other."
+  (:require [app-files.model :as model]
+            [app-files.source :as source]
+            [clojure.test :refer [deftest is testing]]
+            [mokuroku.source :as msource]))
+
+(def ^:private inside
+  [{:path "/w/README.md" :name "README.md" :size 10 :modified 1}
+   {:path "/w/src" :name "src" :directory? true :modified 2}
+   {:path "/w/.gitignore" :name ".gitignore" :size 3 :modified 3}])
+
+(def ^:private outside
+  [{:path "/etc/passwd" :name "passwd" :size 1 :modified 4}
+   {:path "/w/src/main.clj" :name "main.clj" :size 5 :modified 5}
+   {:path "/wother/x" :name "x" :size 6 :modified 6}
+   {:path "/" :name "/" :directory? true :modified 7}
+   {:path "" :name "" :modified 8}])
+
+(deftest a-direct-child-is-confined-and-nothing-else-is
+  (doseq [entry inside]
+    (is (true? (source/confined? "/w" entry)) (:path entry)))
+  (doseq [entry outside]
+    (is (false? (source/confined? "/w" entry)) (:path entry))))
+
+(deftest a-descendant-is-not-a-child
+  ;; The case a prefix check would get wrong, and the reason the Kotoba core
+  ;; compares `:parent` to `:dir` for equality instead of by prefix.
+  (is (false? (source/confined? "/w" {:path "/w/src/main.clj"})))
+  (is (false? (source/confined? "/w" {:path "/w/a/b/c"}))))
+
+(deftest a-sibling-with-a-shared-prefix-is-not-a-child
+  ;; `/wother` starts with `/w`. A `str/starts-with?` implementation admits it.
+  (is (false? (source/confined? "/w" {:path "/wother/x"})))
+  (is (false? (source/confined? "/w" {:path "/w2/x"}))))
+
+(deftest trailing-slashes-do-not-decide-anything
+  (doseq [dir ["/w" "/w/" "/w//"]]
+    (is (true? (source/confined? dir {:path "/w/README.md"})) dir)
+    (is (true? (source/confined? dir {:path "/w/src/"})) (str dir " child/"))))
+
+(deftest the-root-directory-is-a-directory-like-any-other
+  (is (true? (source/confined? "/" {:path "/etc"})))
+  (is (false? (source/confined? "/" {:path "/etc/passwd"})))
+  (is (true? (source/confined? "" {:path "/etc"}))
+      "an empty grant means the root, not everything"))
+
+(deftest fetch-does-not-render-what-the-grant-did-not-cover
+  ;; The one that matters: not that the predicate is right, but that it is on
+  ;; the path a provider's rows actually travel.
+  (let [src (source/fixture-source "/w" (concat inside outside))
+        items (msource/-fetch src)
+        ids (set (map :item/id items))]
+    (is (= 3 (count items)))
+    (is (= #{"/w/README.md" "/w/src" "/w/.gitignore"} ids))
+    (is (not (contains? ids "/etc/passwd")))
+    (is (not (contains? ids "/w/src/main.clj")))))
+
+(deftest a-well-behaved-provider-is-unaffected
+  ;; Confinement must not cost a correct provider anything, or the cheapest
+  ;; way to make the suite green would be to stop returning rows.
+  (let [src (source/fixture-source "/w" inside)]
+    (is (= (model/listing->items inside) (msource/-fetch src)))))
+
+(deftest escapees-names-what-was-dropped
+  (is (= ["/etc/passwd" "/w/src/main.clj" "/wother/x" "/" ""]
+         (mapv :path (source/escapees "/w" (concat inside outside)))))
+  (is (empty? (source/escapees "/w" inside))))
