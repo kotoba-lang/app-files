@@ -1,0 +1,268 @@
+(ns app-files.confinement-parity-test
+  "Binds the two statements of confinement to each other.
+
+  `app-files.source/confined?` is the rule that runs: it takes a granted
+  directory and a provider row and decides, by parsing the row's path, whether
+  the row is a direct child. `app-files.bounded-validate/confined?` is the same
+  rule stated in Kotoba over an abstract model, where an entry carries its
+  parent as an explicit `:keyword` and nothing has to be parsed at all. Until
+  now nothing made the two agree; they merely resembled each other, and
+  `bounded_conformance.kotoba` exercised the Kotoba one against fixtures the
+  Clojure one never sees.
+
+  This namespace compiles the Kotoba core and *executes* it, on the same corpus
+  of cases the real rule is run on, and requires the same answer from each.
+
+  ── The translation ─────────────────────────────────────────────────────────
+
+  The two models do not share a value, so a case here states four things, and
+  the last two are authored facts about paths rather than anything computed:
+
+    :grant  the directory string the app hands to `source/confined?` -- raw,
+            trailing slashes and all, as a host would supply it
+    :path   the path string the provider returned in that row
+    :dir    the directory the grant is for, canonically -- authored
+    :in     the directory that row is in, canonically -- authored; nil when
+            the row has no containing directory at all
+
+  `source/confined?` is given only `:grant` and `:path`, and has to *recover*
+  the relationship by parsing. The guest is given only the relationship: its
+  listing's `:dir` is `:dir` interned as a keyword and its entry's `:parent` is
+  `:in` interned as a keyword, so the guest's `(= parent dir)` answers exactly
+  `(= :dir :in)` as strings. Neither side is told the other's answer, and
+  neither side's answer is derived from the other's code -- in particular `:in`
+  is written down per case, never computed with `source/parent-of`, which would
+  have made this a mirror instead of a gate.
+
+  So the gate fails if the real rule stops recovering from a raw path what the
+  author said the path means, and it fails if the guest stops comparing parent
+  to directory for equality. Both polarities are present: a rule that always
+  answered `true` and a rule that always answered `false` each fail here.
+
+  ── Where the translation is lossy, and it is said out loud ─────────────────
+
+  Ids. The guest's ids are `:keyword`; real ids are paths. `intern-path` is a
+  test-only encoding of a path into a keyword. It is safe precisely because
+  `confined?` never reads `:id` -- only `known-kinds?` does -- so the encoding
+  cannot move the answer. It exists because the abstract model requires an id,
+  not because confinement depends on one.
+
+  No parent. A row like `\"/\"` or `\"\"` has no containing directory, and the
+  abstract model cannot say so: `:parent` is a required keyword. The encoding
+  gives those rows the sentinel `::no-parent`, which is namespaced and so
+  cannot collide with any `(keyword dir-string)`. Both sides then answer `false`
+  -- but for different reasons, production because there is no parent to match
+  and the guest because the sentinel is not the grant. That is the one place
+  the two agree by construction rather than by argument, and it is marked here
+  so nobody reads it as evidence.
+
+  Kinds. Every translated entry is `:file`. Confinement does not look at kind;
+  `bounded_conformance.kotoba` is where kinds are proved.
+
+  ── The eight-entry cap ─────────────────────────────────────────────────────
+
+  `bounded-validate/bounded?` rejects a listing of more than eight entries, and
+  a real directory has more. That bounds how large a *fixture* may be. It does
+  not bound which cases are expressible, because confinement is a per-entry
+  property: `confined-loop` walks entries and returns false at the first one
+  whose parent is not the directory, so a listing's answer is the conjunction
+  of its entries' answers and each entry's answer is independent of the others.
+  Every case below is therefore run as its own one-entry listing -- one entry
+  is under any cap -- and the cap constrains nothing about the corpus, which
+  can grow without bound. `a-listing-answers-the-conjunction-of-its-entries`
+  then checks the multi-entry form against `every?` over the real rule, inside
+  the cap, so the per-entry decomposition is not merely asserted here in prose."
+  (:require [app-files.source :as source]
+            [clojure.java.io :as io]
+            [clojure.test :refer [deftest is testing]]
+            [kotoba.compiler.core :as compiler]
+            [kotoba.compiler.ir :as ir]))
+
+;; ── the guest, compiled and run in process ──────────────────────────────────
+;;
+;; The interpreter namespace is `kotoba.compiler.ir`, not `kotoba.kir`: this
+;; repo's `:kotoba` alias pins the compiler at bef32b78, whose `src/kotoba`
+;; holds only `compiler/`. Newer pins moved the KIR interpreter out to
+;; `kotoba.kir`; if the pin is advanced, this require moves with it. The
+;; compiler is a test-only dependency at exactly that SHA -- it is not in
+;; `:deps` and not on `:paths`, so nothing it provides can reach the library's
+;; runtime, and `app-files.source` does not know it exists.
+
+(defn- kir [resource]
+  (:kir (compiler/compile-source (slurp (io/resource resource)) :js-kotoba-v1)))
+
+;; Compiled once: compiling twice per test would be the slowest part of the
+;; suite and would prove nothing extra.
+(def ^:private bounded (delay (kir "app_files/bounded.kotoba")))
+(def ^:private validate (delay (kir "app_files/bounded_validate.kotoba")))
+
+;; The listing value is built by the guest's own constructors rather than by
+;; hand-writing the wire shape here. Records cross as `[type field …]` in
+;; declared order and a `[:map …]` as `[type [[k v] …]]`, but that was measured
+;; by running `new-listing`/`put-entry` and reading what came back, and this
+;; keeps it measured: if the representation changes, the constructors change
+;; with it and this test does not have to be told.
+(defn- guest-entry [id parent]
+  (ir/execute @bounded 'new-entry [id parent :file]))
+
+(defn- guest-listing [dir entries]
+  (reduce (fn [listing entry] (ir/execute @bounded 'put-entry [listing entry]))
+          (ir/execute @bounded 'new-listing [dir])
+          entries))
+
+(defn- guest-confined? [listing]
+  (ir/execute @validate 'confined? [listing]))
+
+;; ── the translation ─────────────────────────────────────────────────────────
+
+(def ^:private no-parent
+  "A row with no containing directory. Namespaced, so no `(keyword dir)` equals
+  it: `(keyword \"/w\")` has a nil namespace, since single-arity `keyword` does
+  not split on `/`."
+  ::no-parent)
+
+(defn- intern-dir
+  "A canonical directory string as the keyword the guest compares.
+
+  Injective by construction -- distinct strings give distinct keywords -- which
+  is what makes the guest's keyword equality mean the same thing as string
+  equality on the authored directories. `directories-do-not-collide` holds it
+  to that."
+  [dir]
+  (if (nil? dir) no-parent (keyword dir)))
+
+(defn- intern-path
+  "A row path as a guest id. Test-only, and load-bearing for nothing:
+  `confined?` does not read `:id`."
+  [path]
+  (keyword (str "row" path)))
+
+(defn- translate
+  "One case as a one-entry guest listing."
+  [{:keys [dir in path]}]
+  (guest-listing (intern-dir dir)
+                 [(guest-entry (intern-path path) (intern-dir in))]))
+
+;; ── the corpus ──────────────────────────────────────────────────────────────
+;;
+;; `:dir` and `:in` are what the author says these paths mean. `source/confined?`
+;; never sees them.
+
+(def ^:private cases
+  [;; direct children -- the rows a grant for /w actually covers
+   {:label "a file directly in the grant"
+    :grant "/w" :path "/w/README.md" :dir "/w" :in "/w"}
+   {:label "a directory directly in the grant"
+    :grant "/w" :path "/w/src" :dir "/w" :in "/w"}
+   {:label "a dotfile directly in the grant"
+    :grant "/w" :path "/w/.gitignore" :dir "/w" :in "/w"}
+
+   ;; descendants -- under the grant, but not asked for
+   {:label "a descendant one level down"
+    :grant "/w" :path "/w/src/main.clj" :dir "/w" :in "/w/src"}
+   {:label "a descendant three levels down"
+    :grant "/w" :path "/w/a/b/c" :dir "/w" :in "/w/a/b"}
+
+   ;; siblings sharing a prefix -- what a `starts-with?` rule admits wrongly
+   {:label "a sibling directory whose name extends the grant's"
+    :grant "/w" :path "/wother/x" :dir "/w" :in "/wother"}
+   {:label "a sibling directory one character longer"
+    :grant "/w" :path "/w2/x" :dir "/w" :in "/w2"}
+   {:label "a row from somewhere else entirely"
+    :grant "/w" :path "/etc/passwd" :dir "/w" :in "/etc"}
+
+   ;; trailing slashes -- not significant on either side
+   {:label "a trailing slash on the grant"
+    :grant "/w/" :path "/w/README.md" :dir "/w" :in "/w"}
+   {:label "two trailing slashes on the grant"
+    :grant "/w//" :path "/w/README.md" :dir "/w" :in "/w"}
+   {:label "a trailing slash on the row"
+    :grant "/w" :path "/w/src/" :dir "/w" :in "/w"}
+   {:label "a trailing slash on both"
+    :grant "/w/" :path "/w/src/" :dir "/w" :in "/w"}
+   {:label "a trailing slash does not turn a descendant into a child"
+    :grant "/w/" :path "/w/src/main.clj" :dir "/w" :in "/w/src"}
+
+   ;; the root, which is a directory like any other
+   {:label "a child of the root"
+    :grant "/" :path "/etc" :dir "/" :in "/"}
+   {:label "a descendant of the root"
+    :grant "/" :path "/etc/passwd" :dir "/" :in "/etc"}
+   {:label "an empty grant means the root, not everything"
+    :grant "" :path "/etc" :dir "/" :in "/"}
+   {:label "an empty grant does not admit a descendant either"
+    :grant "" :path "/etc/passwd" :dir "/" :in "/etc"}
+
+   ;; rows with no containing directory at all -- see the docstring: these
+   ;; agree by construction, not by argument
+   {:label "the root itself, returned under a grant for /w"
+    :grant "/w" :path "/" :dir "/w" :in nil}
+   {:label "the empty path, returned under a grant for /w"
+    :grant "/w" :path "" :dir "/w" :in nil}
+   {:label "the empty path, returned under a grant for the root"
+    :grant "/" :path "" :dir "/" :in nil}])
+
+;; ── the gate ────────────────────────────────────────────────────────────────
+
+(deftest the-real-rule-and-the-guest-rule-agree-on-every-case
+  (doseq [{:keys [label grant path] :as case} cases]
+    (testing label
+      (is (= (source/confined? grant {:path path})
+             (guest-confined? (translate case)))
+          (str "confinement disagrees: source/confined? " (pr-str grant) " "
+               (pr-str path) " vs bounded-validate/confined? over "
+               (pr-str (intern-dir (:dir case))) " / "
+               (pr-str (intern-dir (:in case))))))))
+
+(deftest both-answers-occur
+  ;; A gate whose corpus is all one polarity is passed by a rule that ignores
+  ;; its arguments. Both rules must be seen saying both things.
+  (let [answers (map #(source/confined? (:grant %) {:path (:path %)}) cases)
+        guest (map #(guest-confined? (translate %)) cases)]
+    (is (= #{true false} (set answers)) "the real rule says both")
+    (is (= #{true false} (set guest)) "the guest says both")
+    (is (< 2 (count (filter true? answers))))
+    (is (< 2 (count (filter false? answers))))))
+
+(deftest directories-do-not-collide
+  ;; The guest compares interned keywords. If the encoding merged two distinct
+  ;; directories into one keyword, the guest would see a parent match that the
+  ;; author never wrote, and the gate would pass on a false agreement.
+  (let [dirs (distinct (concat (map :dir cases) (map :in cases)))]
+    (is (= (count dirs) (count (distinct (map intern-dir dirs))))
+        "intern-dir must be injective over the corpus")
+    (is (not (contains? (set (map intern-dir (remove nil? dirs))) no-parent))
+        "no real directory may intern to the no-parent sentinel")))
+
+(deftest a-listing-answers-the-conjunction-of-its-entries
+  ;; Why the eight-entry cap does not weaken the binding: confinement is per
+  ;; entry, so a listing's answer is `every?` over its rows. Checked here at
+  ;; three, five and eight entries -- at and under the cap -- against the real
+  ;; rule run row by row.
+  (let [grant "/w"
+        rows [{:path "/w/README.md" :in "/w"}
+              {:path "/w/src" :in "/w"}
+              {:path "/w/.gitignore" :in "/w"}
+              {:path "/w/deps.edn" :in "/w"}
+              {:path "/w/LICENSE" :in "/w"}
+              {:path "/w/src/main.clj" :in "/w/src"}
+              {:path "/etc/passwd" :in "/etc"}
+              {:path "/wother/x" :in "/wother"}]]
+    (doseq [[n take-rows] [[3 (take 3 rows)]          ; all confined
+                           [5 (take 5 rows)]          ; all confined
+                           [6 (take 6 rows)]          ; one descendant
+                           [8 rows]]]                 ; exactly the cap
+      (testing (str n " entries")
+        (let [listing (guest-listing (intern-dir grant)
+                                     (map #(guest-entry (intern-path (:path %))
+                                                        (intern-dir (:in %)))
+                                          take-rows))]
+          (is (= (every? #(source/confined? grant {:path (:path %)}) take-rows)
+                 (guest-confined? listing))))))
+    (is (<= 8 (count rows)) "the widest fixture is the cap, not less")))
+
+(deftest the-cap-is-a-fixture-bound-and-the-corpus-is-not-capped
+  ;; Stated as a test rather than only in prose: there are more cases above
+  ;; than a single listing may hold, and they are all run.
+  (is (< 8 (count cases))
+      "the corpus exceeds eight, which one-entry listings make irrelevant"))
