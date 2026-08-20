@@ -25,8 +25,8 @@
                       ;; consumer's classpath, and nothing under src/ requires
                       ;; it. The library's runtime dependencies are still
                       ;; mokuroku and mokuroku-ui.
-                      io.github.kotoba-lang/compiler
-                      {:git/url "https://github.com/kotoba-lang/compiler.git"
+                      io.github.kotoba-lang/amu
+                      {:git/url "https://github.com/kotoba-lang/amu.git"
                        :git/sha "bef32b78852212bc096849d1ff9779c8afae4796"}}
          :main-opts ["-m" "cognitect.test-runner"]
          :exec-fn cognitect.test-runner.api/test}
@@ -35,8 +35,8 @@
                           io.github.kotoba-lang/kotoba-ui {:local/root "../kotoba-ui"}
                           io.github.kotoba-lang/appkit {:local/root "../appkit"}
                           io.github.kotoba-lang/design-quality {:local/root "../design-quality"}}}
-  :kotoba {:extra-deps {io.github.kotoba-lang/compiler
-                        {:git/url "https://github.com/kotoba-lang/compiler.git"
+  :kotoba {:extra-deps {io.github.kotoba-lang/amu
+                        {:git/url "https://github.com/kotoba-lang/amu.git"
                          :git/sha "bef32b78852212bc096849d1ff9779c8afae4796"}}
            :main-opts ["-m" "kotoba.compiler.cli"]}
   :lint {:replace-deps {clj-kondo/clj-kondo {:mvn/version "2024.11.14"}}
