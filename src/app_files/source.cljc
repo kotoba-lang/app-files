@@ -12,7 +12,7 @@
   quietly show an empty directory, which is indistinguishable from a directory
   that is genuinely empty."
   (:require [app-files.model :as model]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [mokuroku.source :as source]))
 
 ;; ── confinement ─────────────────────────────────────────────────────────────
