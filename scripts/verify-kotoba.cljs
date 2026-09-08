@@ -13,7 +13,7 @@
 
 (require '["node:fs" :as fs]
          '["node:path" :as path]
-         '[clojure.string :as str])
+         '[kotoba.lang.text :as str])
 
 ;; `*command-line-args*`, not `(drop 2 process.argv)`: under nbb the script
 ;; path is itself argv[2], so the off-by-one silently made the harness try to
