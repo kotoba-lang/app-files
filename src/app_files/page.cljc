@@ -7,7 +7,7 @@
   row grid, inspector and status line — and each fixing the same accessibility
   gap separately, or not at all."
   (:require [app-files.model :as model]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [mokuroku.catalog :as catalog]
             [mokuroku-ui.core :as mui]))
 
@@ -17,7 +17,7 @@
   [ext]
   (if (str/blank? (str ext))
     "Document"
-    (str (str/upper-case ext) " file")))
+    (str (str/upper ext) " file")))
 
 (def view-opts
   {:columns [:name :size :extension]

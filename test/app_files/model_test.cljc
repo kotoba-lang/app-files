@@ -1,7 +1,7 @@
 (ns app-files.model-test
   (:require [app-files.model :as model]
             [app-files.source :as source]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [clojure.test :refer [deftest is testing]]
             [mokuroku.catalog :as catalog]
             [mokuroku.item :as item]))

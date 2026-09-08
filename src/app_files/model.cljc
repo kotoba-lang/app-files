@@ -5,7 +5,7 @@
   hands back into items the catalog kernel can sort, filter and select, and it
   decides what a file listing's columns are. Reading the directory is the
   host's job, behind the capability grant."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [mokuroku.item :as item]
             [mokuroku.source :as source]))
 
@@ -51,7 +51,7 @@
   (let [base (or nm "")
         idx (str/last-index-of base ".")]
     (when (and idx (pos? idx) (< (inc idx) (count base)))
-      (str/lower-case (subs base (inc idx))))))
+      (str/lower (subs base (inc idx))))))
 
 (defn- kind-of [entry]
   (cond
