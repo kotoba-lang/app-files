@@ -90,16 +90,16 @@ fixing the accessibility gap separately or not at all.
 ## Test
 
 ```sh
-clojure -M:local:test    # sibling checkouts (12 tests)
-clojure -M:test          # pinned git deps
-clojure -M:lint
+kbb -M:local:test    # sibling checkouts (12 tests)
+kbb -M:test          # pinned git deps
+kbb -M:lint
 
 mkdir -p target/kotoba
-clojure -M:kotoba compile test/app_files/bounded_conformance.kotoba \
+kbb -M:kotoba compile test/app_files/bounded_conformance.kotoba \
   --source-path src --target js-browser --output target/kotoba/app-files.mjs
-clojure -M:kotoba compile test/app_files/bounded_conformance.kotoba \
+kbb -M:kotoba compile test/app_files/bounded_conformance.kotoba \
   --source-path src --target wasm32-browser --output target/kotoba/app-files.wasm
-compiler_src="$(clojure -Spath -M:kotoba | tr ':' '\n' | grep '/compiler/' | head -1)"
-nbb scripts/verify-kotoba.cljk target/kotoba/app-files.mjs \
+compiler_src="$(kbb -Spath -M:kotoba | tr ':' '\n' | grep '/compiler/' | head -1)"
+kbb --backend sci scripts/verify-kotoba.cljk target/kotoba/app-files.mjs \
   target/kotoba/app-files.wasm "$(dirname "$compiler_src")/runtime/browser-host.mjs"
 ```
