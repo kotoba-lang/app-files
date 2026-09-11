@@ -33,6 +33,6 @@ jobs:
         run: |
           compiler_src="$(clojure -Spath -M:kotoba | tr ':' '\n' | grep '/compiler/' | head -1)"
           test -n "$compiler_src"
-          nbb scripts/verify-kotoba.cljs target/kotoba/app-files.mjs \
+          nbb scripts/verify-kotoba.cljk target/kotoba/app-files.mjs \
             target/kotoba/app-files.wasm "$(dirname "$compiler_src")/runtime/browser-host.mjs"
 
