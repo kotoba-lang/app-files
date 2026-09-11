@@ -64,7 +64,7 @@ so a validator that always answered one way could not pass it.
 
 ## Measured, not admired
 
-`test/app_files/design_quality_gate_test.cljc` renders the real `->page`
+`test/app_files/design_quality_gate_test.cljk` renders the real `->page`
 output for three states and scores the emitted HTML with
 [`design-quality`](https://github.com/kotoba-lang/design-quality)'s
 deterministic 12-axis HIG/WCAG rubric. The empty state is included on purpose:
@@ -100,6 +100,6 @@ clojure -M:kotoba compile test/app_files/bounded_conformance.kotoba \
 clojure -M:kotoba compile test/app_files/bounded_conformance.kotoba \
   --source-path src --target wasm32-browser --output target/kotoba/app-files.wasm
 compiler_src="$(clojure -Spath -M:kotoba | tr ':' '\n' | grep '/compiler/' | head -1)"
-nbb scripts/verify-kotoba.cljs target/kotoba/app-files.mjs \
+nbb scripts/verify-kotoba.cljk target/kotoba/app-files.mjs \
   target/kotoba/app-files.wasm "$(dirname "$compiler_src")/runtime/browser-host.mjs"
 ```
