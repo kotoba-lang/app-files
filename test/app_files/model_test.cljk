@@ -2,7 +2,7 @@
   (:require [app-files.model :as model]
             [app-files.source :as source]
             [kotoba.lang.text :as str]
-            [clojure.test :refer [deftest is testing]]
+            [kotoba.test :refer [deftest is testing]]
             [mokuroku.catalog :as catalog]
             [mokuroku.item :as item]))
 

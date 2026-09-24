@@ -12,7 +12,7 @@
   (:require [app-files.model :as model]
             [app-files.page :as page]
             [app-files.source :as source]
-            [clojure.test :refer [deftest is testing]]
+            [kotoba.test :refer [deftest is testing]]
             [design-quality.audit :as dq]
             [mokuroku-ui.core :as mui]
             [mokuroku.catalog :as catalog]))

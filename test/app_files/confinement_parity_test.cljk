@@ -74,7 +74,7 @@
   the cap, so the per-entry decomposition is not merely asserted here in prose."
   (:require [app-files.source :as source]
             [clojure.java.io :as io]
-            [clojure.test :refer [deftest is testing]]
+            [kotoba.test :refer [deftest is testing]]
             [kotoba.compiler.core :as compiler]
             [kotoba.compiler.ir :as ir]))
 
