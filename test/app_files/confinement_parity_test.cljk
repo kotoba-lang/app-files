@@ -73,7 +73,7 @@
   then checks the multi-entry form against `every?` over the real rule, inside
   the cap, so the per-entry decomposition is not merely asserted here in prose."
   (:require [app-files.source :as source]
-            [clojure.java.io :as io]
+            [kotoba.io :as io]
             [kotoba.test :refer [deftest is testing]]
             [kotoba.compiler.core :as compiler]
             [kotoba.compiler.ir :as ir]))
