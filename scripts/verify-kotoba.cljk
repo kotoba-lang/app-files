@@ -7,7 +7,7 @@
 ;; stale selection. This executes `main` and demands 42.
 ;;
 ;; nbb rather than a .mjs: new Node harnesses in this workspace are written in
-;; ClojureScript (CLAUDE.md, owner directive 2026-07-10). The logic is ported
+;; ClojureScript (AGENTS.md, owner directive 2026-07-10). The logic is ported
 ;; from the .mjs verifier `kotoba-lang/drive` still carries. Promise chaining
 ;; is `.then` rather than promesa, which nbb does not ship.
 
