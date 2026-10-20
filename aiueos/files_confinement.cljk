@@ -1,0 +1,70 @@
+(ns files.confinement
+  "ファイル confine 判定コア — itonami dapp bundle（pure, :effects #{}）。
+
+  Finder の grant（1 ディレクトリ）の confinement 判定（正本:
+  src/app_files/source.cljk の confined? / escapees / confine +
+  model.cljk の extension / commands）:
+
+  - **direct child のみが grant 内**（descendant ではない）: /w の一覧に
+    /w/src/main.clj は「頼んでいないもの」。比較は親ディレクトリの
+    **等値**であり、prefix ではない（/wother/x は /w の外）。
+  - 末尾スラッシュは非意味（/w/src/ と /w/src は同じ）。
+  - **escapee が 1 つでもあれば一覧は拒否**（fail closed）。
+  - extension は最後のドットより後・小文字。**ドットファイルは拡張子無し**
+    （.gitignore は拡張子 gitignore のファイルではない）。
+  - コマンドは **open / reveal / copy-path / quicklook のみ** ——
+    rename / trash は実装が現れるまで出さない（「何もしないボタンは
+    壊れたアプリに見える」）。
+
+  confined: 1 = direct child（親ディレクトリが grant と等しい）
+  confine-listing: 1 = escapee 無し（一覧として受け入れる）
+  extension-code: 1 = 拡張子あり / 0 = 無し（ドットファイル）
+  command-admissible: 1 = 0..3（open/reveal/copy-path/quicklook）の内
+
+  実行 host はスカラーのみ = KIR v3 / i64/direct ABI（kernel/selfhost 両対応）。
+
+  テストはゼロ引数 test-*、戻り 1/0:
+  <amu> test aiueos/files_confinement.cljk"
+  (:export [main confined confine-listing extension-code command-admissible
+            test-confined test-escapees test-extension test-command
+            test-fail-closed]))
+
+(defn main [] :i64
+  0)
+
+(defn confined [parent-is-grant :i64] :i64
+  (if (= parent-is-grant 1) 1 0))
+
+(defn confine-listing [n-escapees :i64] :i64
+  (if (= n-escapees 0) 1 0))
+
+(defn extension-code [has-dot :i64 dot-not-first :i64 has-char-after :i64] :i64
+  (if (and (= has-dot 1) (= dot-not-first 1) (= has-char-after 1)) 1 0))
+
+(defn command-admissible [cmd-code :i64] :i64
+  (if (and (>= cmd-code 0) (<= cmd-code 3)) 1 0))
+
+;; --- tests（戻り 1 = pass） ------------------------------------------------
+
+(defn test-confined [] :i64
+  ;; direct child のみ（descendant / prefix 兄弟は外）
+  (if (= (+ (confined 1) (confined 0)) 1) 1 0))
+
+(defn test-escapees [] :i64
+  ;; escapee が 1 つでもあれば一覧は拒否
+  (if (= (+ (confine-listing 0) (confine-listing 1) (confine-listing 3)) 1) 1 0))
+
+(defn test-extension [] :i64
+  ;; .gitignore は拡張子無し（ドットは先頭でなく、後ろに文字があること）
+  (if (= (+ (extension-code 1 1 1) (extension-code 1 0 1) (extension-code 1 1 0)
+            (extension-code 0 0 0))
+         1)
+    1 0))
+
+(defn test-command [] :i64
+  ;; rename / trash は実装があるまで出さない
+  (if (= (+ (command-admissible 0) (command-admissible 3) (command-admissible 4) (command-admissible 5)) 2) 1 0))
+
+(defn test-fail-closed [] :i64
+  ;; 親が grant でない行は拒否
+  (if (= (+ (confined 0) (confine-listing 2)) 0) 1 0))

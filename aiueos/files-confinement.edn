@@ -1,0 +1,19 @@
+;; app-files — itonami（dapp）の aiueos アプリ記述子（notes.edn 形）。
+;; 判定コアは aiueos/files_confinement.cljk（grant の confinement 判定）。
+;; 正本は src/app_files/source.cljk（confined? / escapees / confine）+
+;; model.cljk（extension / commands）。pure（:effects #{}）。
+{:aiueos/component :app/files-confinement
+ :aiueos/kind :app
+ :aiueos/trust :untrusted
+ :aiueos/source "files_confinement.cljk"
+ :aiueos/wasm "files_confinement.wasm"
+ :aiueos/entry "main"
+ :aiueos/args []
+ :aiueos/imports #{}
+ :aiueos/exports #{:app/main
+                   :app/confined
+                   :app/confine-listing
+                   :app/extension-code
+                   :app/command-admissible}
+ :aiueos/effects #{}
+ :aiueos/limits {:memory-pages 16 :fuel 5000000}}

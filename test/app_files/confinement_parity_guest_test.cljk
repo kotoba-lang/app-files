@@ -1,0 +1,39 @@
+(ns app-files.confinement-parity-guest-test
+  "aiueos/files_confinement.cljk（判定コア）と実物の source.cljk / model.cljk
+  の parity。confinement_test の fixture と同じ行で confined? / escapees /
+  extension / commands が guest の判定と一致する。"
+  (:require [clojure.test :refer [deftest is testing]]
+            [app-files.model :as model]
+            [app-files.source :as source]))
+
+(def inside
+  [{:path "/w/README.md" :name "README.md" :size 10 :modified 1}
+   {:path "/w/src" :name "src" :directory? true :modified 2}
+   {:path "/w/.gitignore" :name ".gitignore" :size 3 :modified 3}])
+
+(def outside
+  [{:path "/etc/passwd" :name "passwd" :size 1 :modified 4}
+   {:path "/w/src/main.clj" :name "main.clj" :size 5 :modified 5}
+   {:path "/wother/x" :name "x" :size 6 :modified 6}
+   {:path "/" :name "/" :directory? true :modified 7}])
+
+(deftest confinement-matches-guest
+  (testing "guest test-confined: direct child のみ（descendant / prefix 兄弟 / ルートは外）"
+    (is (= inside (source/confine "/w" (into inside outside))))
+    (is (= [] (source/confine "/w" outside))))
+  (testing "guest test-escapees / test-fail-closed: escapee は一覧から外れる"
+    (is (= 4 (count (source/escapees "/w" (into inside outside)))))
+    (is (= [] (source/escapees "/w" inside))))
+  (testing "guest test-confined: 末尾スラッシュは非意味"
+    (is (true? (#'source/confined? "/w/" {:path "/w/src"})))))
+
+(deftest model-matches-guest
+  (testing "guest test-extension: ドットファイルは拡張子無し"
+    (is (= "md" (model/extension "README.md")))
+    (is (= "clj" (model/extension "main.clj")))
+    (is (nil? (model/extension ".gitignore")))
+    (is (nil? (model/extension "noext"))))
+  (testing "guest test-command: rename / trash は無い"
+    (is (= #{:open :reveal :copy-path :quicklook} model/commands))
+    (is (not (contains? model/commands :rename)))
+    (is (not (contains? model/commands :trash)))))
